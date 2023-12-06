@@ -25,14 +25,14 @@ class EventController extends Controller
             'end_time' => 'nullable',
             'is_all_day' => 'nullable|integer',
             'status' => 'required|integer',
-            'token' => 'required'
         ];
     }
 
     public function onCreate(Request $request)
     {
         $fields = $request->validate($this->getRules());
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $this->event = new Event();
             $this->event->fill($fields);
@@ -46,7 +46,8 @@ class EventController extends Controller
     public function onUpdateById(Request $request, $id)
     {
         $fields = $request->validate($this->getRules());
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $this->event = Event::findOrFail($id);
             if ($this->event) {
@@ -79,17 +80,14 @@ class EventController extends Controller
 
     public function onGetAll(Request $request)
     {
-
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $eventData = Event::all();
             if ($eventData->count() !== 0) {
                 $reconstructedList = [];
                 foreach ($eventData as $data) {
-                    $reconstructedList[] = $this->onReconstructedList($data->id, $fields['token']);
+                    $reconstructedList[] = $this->onReconstructedList($data->id, $bearerToken);
                 }
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Event', 1), $reconstructedList);
             }
@@ -101,16 +99,13 @@ class EventController extends Controller
 
     public function onGetById(Request $request, $id)
     {
-
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $eventData = Event::find($id);
 
             if ($eventData) {
-                $eventData = $this->onReconstructedList($eventData->id, $fields['token']);
+                $eventData = $this->onReconstructedList($eventData->id, $bearerToken);
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Event', 1), $eventData);
             }
             return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onExist('Event', 3), null);
@@ -125,9 +120,9 @@ class EventController extends Controller
             'display' => 'nullable|integer',
             'page' => 'nullable|integer',
             'search' => 'nullable|string',
-            'token' => 'required'
         ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         $page = $fields['page'] ?? 1;
         $display = $fields['display'] ?? 10;
         $offset = ($page - 1) * $display;
@@ -141,7 +136,7 @@ class EventController extends Controller
             $totalPage = max(ceil($query->count() / $display), 1);
             $reconstructedList = [];
             foreach ($dataList as $key => $value) {
-                $reconstructedList[] = $this->onReconstructedList($value->id, $fields['token']);
+                $reconstructedList[] = $this->onReconstructedList($value->id, $bearerToken);
             }
             $response = [
                 'total_page' => $totalPage,
@@ -157,10 +152,8 @@ class EventController extends Controller
     }
     public function onDeleteById(Request $request, $id)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $deletedRows = Event::destroy($id);
             if ($deletedRows) {
@@ -185,5 +178,12 @@ class EventController extends Controller
             $data->updated_by = $updated_by_data;
         }
         return $data;
+    }
+
+    public function onGetBearerToken($request)
+    {
+        $bearerToken = $request->header('Authorization');
+        $tokenWithoutBearer = str_replace('Bearer ', '', $bearerToken);
+        return $tokenWithoutBearer;
     }
 }

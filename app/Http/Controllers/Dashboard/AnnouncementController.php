@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 use Http;
 use App\Helpers\EnglishLanguage;
 use App\Helpers\ResponseHelper;
-use Illuminate\Support\Facades\Storage;
 
 class AnnouncementController extends Controller
 {
@@ -23,27 +22,27 @@ class AnnouncementController extends Controller
             'description' => 'required|string',
             'from' => 'required|string',
             'to' => 'required|string',
-            'file' => 'file|nullable',
+            'file' => 'nullable',
             'is_allow_comment' => 'required|integer',
             'is_pinned' => 'nullable|integer',
             'status' => 'required|integer',
             'type' => 'required|string',
-            'token' => 'required'
         ];
     }
 
     public function onCreate(Request $request)
     {
         $fields = $request->validate($this->getRules());
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         $type = $fields['type'] == 1 ? 'Announcement' : 'Feeds';
         try {
-            $fieldsToSave = ['file', 'cover'];
-            foreach ($fieldsToSave as $field) {
-                if (isset($fields[$field])) {
-                    $fields[$field] = $this->onUploadFunction($fields[$field]);
-                }
-            }
+            // $fieldsToSave = ['file', 'cover'];
+            // foreach ($fieldsToSave as $field) {
+            //     if (isset($fields[$field])) {
+            //         $fields[$field] = $this->onUploadFunction($fields[$field]);
+            //     }
+            // }
             $this->announcement = new Announcement();
             $this->announcement->fill($fields);
             $this->announcement->save();
@@ -57,14 +56,15 @@ class AnnouncementController extends Controller
     {
         $fields = $request->validate($this->getRules());
         $type = $fields['type'] == 1 ? 'Announcement' : 'Feeds';
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
-            $fieldsToSave = ['file', 'cover'];
-            foreach ($fieldsToSave as $field) {
-                if (isset($fields[$field])) {
-                    $fields[$field] = $this->onUploadFunction($fields[$field]);
-                }
-            }
+            // $fieldsToSave = ['file', 'cover'];
+            // foreach ($fieldsToSave as $field) {
+            //     if (isset($fields[$field])) {
+            //         $fields[$field] = $this->onUploadFunction($fields[$field]);
+            //     }
+            // }
             $this->announcement = Announcement::findOrFail($id);
             if ($this->announcement) {
                 $fields['updated_by_id'] = $fields['created_by_id'];
@@ -77,12 +77,12 @@ class AnnouncementController extends Controller
         }
     }
 
-    public function onUploadFunction($data)
-    {
-        $hashedName = $data->hashName();
-        $filePath = $data->storeAs('public', $hashedName);
-        return ENV('APP_URL') . Storage::url($filePath);
-    }
+    // public function onUploadFunction($data)
+    // {
+    //     $hashedName = $data->hashName();
+    //     $filePath = $data->storeAs('public', $hashedName);
+    //     return ENV('APP_URL') . Storage::url($filePath);
+    // }
 
     public function getUserById($id, $token)
     {
@@ -104,16 +104,14 @@ class AnnouncementController extends Controller
 
     public function onGetAll(Request $request)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $announcementData = Announcement::all();
             if ($announcementData->count() !== 0) {
                 $reconstructedList = [];
                 foreach ($announcementData as $data) {
-                    $reconstructedList[] = $this->onReconstructedList($data->id, $fields['token']);
+                    $reconstructedList[] = $this->onReconstructedList($data->id, $bearerToken);
                 }
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Announcement', 1), $reconstructedList);
             }
@@ -125,15 +123,13 @@ class AnnouncementController extends Controller
 
     public function onGetById(Request $request, $id)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $announcementData = Announcement::find($id);
 
             if ($announcementData) {
-                $announcementData = $this->onReconstructedList($announcementData->id, $fields['token']);
+                $announcementData = $this->onReconstructedList($announcementData->id, $bearerToken);
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Announcement', 1), $announcementData);
             }
             return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onExist('Announcement', 3), null);
@@ -149,9 +145,9 @@ class AnnouncementController extends Controller
             'page' => 'nullable|integer',
             'search' => 'nullable|string',
             'type' => 'nullable|integer',
-            'token' => 'required'
         ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         $type = $fields['type'] ?? 1;
         $page = $fields['page'] ?? 1;
         $display = $fields['display'] ?? 10;
@@ -166,7 +162,7 @@ class AnnouncementController extends Controller
             $totalPage = max(ceil($query->count() / $display), 1);
             $reconstructedList = [];
             foreach ($dataList as $key => $value) {
-                $reconstructedList[] = $this->onReconstructedList($value->id, $fields['token']);
+                $reconstructedList[] = $this->onReconstructedList($value->id, $bearerToken);
             }
             $response = [
                 'total_page' => $totalPage,
@@ -182,10 +178,8 @@ class AnnouncementController extends Controller
     }
     public function onDeleteById(Request $request, $id)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $deletedRows = Announcement::destroy($id);
             if ($deletedRows) {
@@ -210,6 +204,13 @@ class AnnouncementController extends Controller
             $data->updated_by = $updated_by_data;
         }
         return $data;
+    }
+
+    public function onGetBearerToken($request)
+    {
+        $bearerToken = $request->header('Authorization');
+        $tokenWithoutBearer = str_replace('Bearer ', '', $bearerToken);
+        return $tokenWithoutBearer;
     }
 }
 

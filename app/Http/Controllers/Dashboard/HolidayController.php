@@ -20,17 +20,17 @@ class HolidayController extends Controller
             'title' => 'required|string',
             'description' => 'nullable|string',
             'location' => 'nullable|string',
-            'date' => 'required|date',
+            'date' => 'required|date|date_format:Y-m-d',
             'is_local' => 'nullable|integer',
             'status' => 'required|integer',
-            'token' => 'required'
         ];
     }
 
     public function onCreate(Request $request)
     {
         $fields = $request->validate($this->getRules());
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $this->holiday = new Holiday();
             $this->holiday->fill($fields);
@@ -44,7 +44,8 @@ class HolidayController extends Controller
     public function onUpdateById(Request $request, $id)
     {
         $fields = $request->validate($this->getRules());
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $this->holiday = Holiday::findOrFail($id);
             if ($this->holiday) {
@@ -77,16 +78,14 @@ class HolidayController extends Controller
 
     public function onGetAll(Request $request)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $holidayData = Holiday::all();
             if ($holidayData->count() !== 0) {
                 $reconstructedList = [];
                 foreach ($holidayData as $data) {
-                    $reconstructedList[] = $this->onReconstructedList($data->id, $fields['token']);
+                    $reconstructedList[] = $this->onReconstructedList($data->id, $bearerToken);
                 }
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Holiday', 1), $reconstructedList);
             }
@@ -98,16 +97,13 @@ class HolidayController extends Controller
 
     public function onGetById(Request $request, $id)
     {
-
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $holidayData = Holiday::find($id);
 
             if ($holidayData) {
-                $holidayData = $this->onReconstructedList($holidayData->id, $fields['token']);
+                $holidayData = $this->onReconstructedList($holidayData->id, $bearerToken);
                 return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onGet('Holiday', 1), $holidayData);
             }
             return ResponseHelper::dataResponse('success', 200, EnglishLanguage::onExist('Holiday', 3), null);
@@ -122,9 +118,9 @@ class HolidayController extends Controller
             'display' => 'nullable|integer',
             'page' => 'nullable|integer',
             'search' => 'nullable|string',
-            'token' => 'required'
         ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         $page = $fields['page'] ?? 1;
         $display = $fields['display'] ?? 10;
         $offset = ($page - 1) * $display;
@@ -137,7 +133,7 @@ class HolidayController extends Controller
             $totalPage = max(ceil($query->count() / $display), 1);
             $reconstructedList = [];
             foreach ($dataList as $key => $value) {
-                $reconstructedList[] = $this->onReconstructedList($value->id, $fields['token']);
+                $reconstructedList[] = $this->onReconstructedList($value->id, $bearerToken);
             }
             $response = [
                 'total_page' => $totalPage,
@@ -153,10 +149,8 @@ class HolidayController extends Controller
     }
     public function onDeleteById(Request $request, $id)
     {
-        $fields = $request->validate([
-            'token' => 'required'
-        ]);
-        CheckAuth::auth($fields['token']);
+        $bearerToken = $this->onGetBearerToken($request);
+        CheckAuth::auth($bearerToken);
         try {
             $deletedRows = Holiday::destroy($id);
             if ($deletedRows) {
@@ -181,5 +175,11 @@ class HolidayController extends Controller
             $data->updated_by = $updated_by_data;
         }
         return $data;
+    }
+    public function onGetBearerToken($request)
+    {
+        $bearerToken = $request->header('Authorization');
+        $tokenWithoutBearer = str_replace('Bearer ', '', $bearerToken);
+        return $tokenWithoutBearer;
     }
 }
